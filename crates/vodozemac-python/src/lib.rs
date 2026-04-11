@@ -9,5 +9,6 @@ fn fresholm_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     errors::register_exceptions(m)?;
     m.add_class::<account::Account>()?;
     m.add_class::<session::Session>()?;
+    m.add_class::<session::EncryptedMessage>()?;
     Ok(())
 }
