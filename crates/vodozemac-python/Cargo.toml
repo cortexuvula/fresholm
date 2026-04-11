@@ -1,0 +1,12 @@
+[package]
+name = "vodozemac-python"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "fresholm_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+vodozemac = "0.9"
+pyo3 = { version = "0.28", features = ["extension-module"] }
