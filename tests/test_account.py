@@ -72,3 +72,93 @@ class TestCreateAccount:
         assert r.startswith("Account(")
         assert "ed25519=" in r
         assert "curve25519=" in r
+
+
+# ---------------------------------------------------------------------------
+# Compat layer tests
+# ---------------------------------------------------------------------------
+
+from fresholm.compat.olm import Account as CompatAccount
+
+
+class TestCompatAccount:
+    """Test the python-olm compatible Account wrapper."""
+
+    def test_identity_keys_is_property(self):
+        acct = CompatAccount()
+        # identity_keys is a property, not a method
+        keys = acct.identity_keys
+        assert isinstance(keys, dict)
+        assert "ed25519" in keys
+        assert "curve25519" in keys
+
+    def test_one_time_keys_nested_format(self):
+        acct = CompatAccount()
+        acct.generate_one_time_keys(3)
+        otks = acct.one_time_keys
+        assert "curve25519" in otks
+        assert isinstance(otks["curve25519"], dict)
+        assert len(otks["curve25519"]) == 3
+
+    def test_max_one_time_keys_is_property(self):
+        acct = CompatAccount()
+        assert isinstance(acct.max_one_time_keys, int)
+        assert acct.max_one_time_keys > 0
+
+    def test_sign_accepts_str(self):
+        acct = CompatAccount()
+        sig = acct.sign("hello")
+        assert isinstance(sig, str)
+        assert len(sig) > 20
+
+    def test_sign_accepts_bytes(self):
+        acct = CompatAccount()
+        sig = acct.sign(b"hello")
+        assert isinstance(sig, str)
+        assert len(sig) > 20
+
+    def test_sign_str_and_bytes_match(self):
+        acct = CompatAccount()
+        sig_str = acct.sign("hello")
+        sig_bytes = acct.sign(b"hello")
+        assert sig_str == sig_bytes
+
+    def test_string_passphrase_serialization(self):
+        acct = CompatAccount()
+        data = acct.pickle("my string passphrase")
+        assert isinstance(data, bytes)
+        restored = CompatAccount.from_pickle(data, "my string passphrase")
+        assert restored.identity_keys["ed25519"] == acct.identity_keys["ed25519"]
+
+    def test_bytes_passphrase_serialization(self):
+        acct = CompatAccount()
+        data = acct.pickle(b"my bytes passphrase")
+        assert isinstance(data, bytes)
+        restored = CompatAccount.from_pickle(data, b"my bytes passphrase")
+        assert restored.identity_keys["ed25519"] == acct.identity_keys["ed25519"]
+
+    def test_subclassing(self):
+        class MyAccount(CompatAccount):
+            def __init__(self):
+                super().__init__()
+                self.extra = True
+
+        acct = MyAccount()
+        assert acct.extra is True
+        assert isinstance(acct.identity_keys, dict)
+
+        data = acct.pickle("sub_pass")
+        restored = MyAccount.from_pickle(data, "sub_pass")
+        assert isinstance(restored, MyAccount)
+
+    def test_remove_one_time_keys_noop(self):
+        acct = CompatAccount()
+        # Should not raise
+        acct.remove_one_time_keys(None)
+
+    def test_repr(self):
+        acct = CompatAccount()
+        r = repr(acct)
+        assert "Account(" in r
+        assert "ed25519=" in r
+        assert "curve25519=" in r

@@ -113,3 +113,105 @@ class TestSessionProperties:
         r = repr(alice_session)
         assert r.startswith("Session(")
         assert "session_id=" in r
+
+
+# ---------------------------------------------------------------------------
+# Compat layer tests
+# NOTE: Method names like 'pickle' and 'from_pickle' are the python-olm API
+# names required for mautrix compatibility. Internally they use vodozemac's
+# safe encrypted-string serialization.
+# ---------------------------------------------------------------------------
+
+from fresholm.compat.olm import (
+    Account as CompatAccount,
+    Session as CompatSession,
+    OlmMessage,
+    OlmPreKeyMessage,
+)
+
+
+def _create_compat_session_pair():
+    """Create Alice+Bob session pair using the compat layer."""
+    alice = CompatAccount()
+    bob = CompatAccount()
+
+    bob.generate_one_time_keys(1)
+    bob_otk = list(bob.one_time_keys["curve25519"].values())[0]
+    bob.mark_keys_as_published()
+
+    alice_session = alice.new_outbound_session(
+        bob.identity_keys["curve25519"], bob_otk
+    )
+
+    # Alice encrypts a message (pre-key)
+    msg = alice_session.encrypt("Hello Bob!")
+    assert isinstance(msg, OlmPreKeyMessage)
+    assert msg.message_type == 0
+
+    # Bob creates inbound session
+    bob_session = bob.new_inbound_session(
+        alice.identity_keys["curve25519"], msg
+    )
+
+    return alice, bob, alice_session, bob_session
+
+
+class TestCompatSession:
+    """Test the python-olm compatible Session wrapper."""
+
+    def test_olm_roundtrip_through_compat(self):
+        alice, bob, alice_session, bob_session = _create_compat_session_pair()
+
+        # Alice sends another message
+        msg = alice_session.encrypt("Second message")
+        plaintext = bob_session.decrypt(msg)
+        assert plaintext == "Second message"
+
+    def test_bidirectional(self):
+        alice, bob, alice_session, bob_session = _create_compat_session_pair()
+
+        # Bob replies
+        reply = bob_session.encrypt("Hello Alice!")
+        assert isinstance(reply, OlmMessage)
+        assert reply.message_type == 1
+
+        decrypted = alice_session.decrypt(reply)
+        assert decrypted == "Hello Alice!"
+
+    def test_session_id_is_property(self):
+        alice, bob, alice_session, bob_session = _create_compat_session_pair()
+        assert isinstance(alice_session.id, str)
+        assert len(alice_session.id) > 20
+
+    def test_encrypt_accepts_str(self):
+        alice, bob, alice_session, bob_session = _create_compat_session_pair()
+        msg = alice_session.encrypt("string input")
+        assert isinstance(msg, (OlmMessage, OlmPreKeyMessage))
+
+    def test_encrypt_accepts_bytes(self):
+        alice, bob, alice_session, bob_session = _create_compat_session_pair()
+        msg = alice_session.encrypt(b"bytes input")
+        assert isinstance(msg, (OlmMessage, OlmPreKeyMessage))
+
+    def test_describe(self):
+        alice, bob, alice_session, bob_session = _create_compat_session_pair()
+        desc = alice_session.describe()
+        assert "Session(" in desc
+        assert "id=" in desc
+
+    def test_serialization_with_string_passphrase(self):
+        alice, bob, alice_session, bob_session = _create_compat_session_pair()
+        data = alice_session.pickle("sess_pass")
+        assert isinstance(data, bytes)
+        restored = CompatSession.from_pickle(data, "sess_pass")
+        assert restored.id == alice_session.id
+
+    def test_subclassing(self):
+        class MySession(CompatSession):
+            pass
+
+        alice, bob, alice_session, bob_session = _create_compat_session_pair()
+        data = alice_session.pickle("sub_pass")
+        restored = MySession.from_pickle(data, "sub_pass")
+        assert isinstance(restored, MySession)
+        assert restored.id == alice_session.id

@@ -167,3 +167,118 @@ class TestRepr:
         assert "InboundGroupSession(" in r
         assert "session_id=" in r
         assert "first_known_index=" in r
+
+
+# ---------------------------------------------------------------------------
+# Compat layer tests for group sessions
+# These test the python-olm API compatibility wrapper.
+# The serialization methods use vodozemac encrypted strings internally.
+# ---------------------------------------------------------------------------
+
+from fresholm.compat.olm import (
+    OutboundGroupSession as CompatOutbound,
+    InboundGroupSession as CompatInbound,
+    GroupSession as CompatGroupSession,
+)
+
+
+class TestCompatGroupSession:
+    """Test the python-olm compatible group session wrappers."""
+
+    def test_megolm_roundtrip_through_compat(self):
+        outbound = CompatOutbound()
+        session_key = outbound.session_key
+        inbound = CompatInbound(session_key)
+
+        assert outbound.id == inbound.id
+
+        ct = outbound.encrypt("Hello group!")
+        pt, idx = inbound.decrypt(ct)
+        assert pt == "Hello group!"
+        assert idx == 0
+
+    def test_outbound_properties(self):
+        outbound = CompatOutbound()
+        assert isinstance(outbound.id, str)
+        assert isinstance(outbound.session_key, str)
+        assert outbound.message_index == 0
+
+        outbound.encrypt("msg")
+        assert outbound.message_index == 1
+
+    def test_inbound_properties(self):
+        outbound = CompatOutbound()
+        inbound = CompatInbound(outbound.session_key)
+        assert isinstance(inbound.id, str)
+        assert inbound.first_known_index == 0
+
+    def test_export_import(self):
+        outbound = CompatOutbound()
+        session_key = outbound.session_key
+        inbound = CompatInbound(session_key)
+
+        ct0 = outbound.encrypt("msg 0")
+        inbound.decrypt(ct0)
+
+        exported = inbound.export_session(1)
+        imported = CompatInbound.import_session(exported)
+        assert imported.id == inbound.id
+        assert imported.first_known_index == 1
+
+        ct1 = outbound.encrypt("msg 1")
+        pt, idx = imported.decrypt(ct1)
+        assert pt == "msg 1"
+        assert idx == 1
+
+    def test_outbound_serialization(self):
+        outbound = CompatOutbound()
+        data = outbound.pickle("pass1")
+        restored = CompatOutbound.from_pickle(data, "pass1")
+        assert restored.id == outbound.id
+
+    def test_inbound_serialization(self):
+        outbound = CompatOutbound()
+        inbound = CompatInbound(outbound.session_key)
+        data = inbound.pickle("pass2")
+        restored = CompatInbound.from_pickle(data, "pass2")
+        assert restored.id == inbound.id
+
+    def test_group_session_alias(self):
+        assert CompatGroupSession is CompatOutbound
+
+    def test_encrypt_accepts_str_and_bytes(self):
+        outbound = CompatOutbound()
+        session_key = outbound.session_key
+        inbound = CompatInbound(session_key)
+
+        ct1 = outbound.encrypt("str input")
+        pt1, _ = inbound.decrypt(ct1)
+        assert pt1 == "str input"
+
+        ct2 = outbound.encrypt(b"bytes input")
+        pt2, _ = inbound.decrypt(ct2)
+        assert pt2 == "bytes input"
+
+    def test_outbound_subclassing(self):
+        class MyOutbound(CompatOutbound):
+            def __init__(self):
+                super().__init__()
+                self.room = "test"
+
+        sess = MyOutbound()
+        assert sess.room == "test"
+        assert isinstance(sess.id, str)
+
+        data = sess.pickle("sub_pass")
+        restored = MyOutbound.from_pickle(data, "sub_pass")
+        assert isinstance(restored, MyOutbound)
+
+    def test_inbound_subclassing(self):
+        class MyInbound(CompatInbound):
+            pass
+
+        outbound = CompatOutbound()
+        inbound = MyInbound(outbound.session_key)
+        data = inbound.pickle("sub_pass")
+        restored = MyInbound.from_pickle(data, "sub_pass")
+        assert isinstance(restored, MyInbound)
