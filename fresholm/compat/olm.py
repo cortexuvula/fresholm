@@ -482,6 +482,44 @@ class PkDecryption:
         return plaintext_bytes.decode("utf-8")
 
 
+class PkSigning:
+    """Python-olm compatible PkSigning for ed25519 cross-signing keys.
+
+    Used by mautrix.crypto for cross-signing (master, self-signing, user-signing keys).
+    Wraps Python's cryptography library Ed25519PrivateKey for signing.
+    """
+
+    def __init__(self, seed: bytes):
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        self._private_key = Ed25519PrivateKey.from_private_bytes(seed)
+
+    @property
+    def public_key(self) -> str:
+        """Return the ed25519 public key as an unpadded base64 string."""
+        import base64
+        raw = self._private_key.public_key().public_bytes_raw()
+        return base64.b64encode(raw).rstrip(b"=").decode("ascii")
+
+    def sign(self, message) -> str:
+        """Sign a message (str or bytes), return unpadded base64 signature."""
+        import base64
+        if isinstance(message, str):
+            message = message.encode("utf-8")
+        sig = self._private_key.sign(message)
+        return base64.b64encode(sig).rstrip(b"=").decode("ascii")
+
+    @staticmethod
+    def generate_seed() -> bytes:
+        """Generate a random 32-byte seed."""
+        import os
+        return os.urandom(32)
+
+
+class PkSigningError(Exception):
+    """PkSigning error exception."""
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Aliases for python-olm compatibility
 # ---------------------------------------------------------------------------
@@ -505,6 +543,8 @@ __all__ = [
     "OlmPreKeyMessage",
     "PkEncryption",
     "PkDecryption",
+    "PkSigning",
+    "PkSigningError",
     "Sas",
     "sha256",
     "ed25519_verify",
