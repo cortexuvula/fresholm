@@ -1,0 +1,159 @@
+# fresholm
+
+Drop-in replacement for `python-olm` backed by vodozemac (Rust) for mautrix Matrix bridge E2EE.
+
+## Why?
+
+| Library | Status |
+|---|---|
+| `python-olm` | Archived; fails to build on macOS ARM64 / Xcode 16+ / CMake 3.28+ |
+| `libolm` (C) | Deprecated by the Matrix.org Foundation in favour of vodozemac |
+| `vodozemac-bindings` | Officially marked "no longer actively maintained" |
+| `mautrix-python` | Still hard-depends on `python-olm` for the `e2be` extra |
+
+`fresholm` wraps vodozemac through PyO3/maturin and exposes a python-olm-compatible API so
+mautrix bridges can drop it in with zero or minimal code changes.
+
+## Install
+
+```
+pip install fresholm
+```
+
+Pre-built wheels are provided for macOS ARM64, Linux x86-64/aarch64, and Windows.
+
+## Usage
+
+### Import hook (zero-change migration)
+
+Insert one import before any code that does `import olm`. It monkey-patches `sys.modules`
+so that `import olm` resolves to fresholm's compatibility layer.
+
+```python
+import fresholm.import_hook  # noqa: F401 -- side-effect import
+import olm  # now backed by fresholm
+```
+
+### Direct import
+
+```python
+from fresholm.compat.olm import (
+    Account,
+    Session,
+    OutboundGroupSession,
+    InboundGroupSession,
+    OlmMessage,
+    OlmPreKeyMessage,
+    PkEncryption,
+    PkDecryption,
+)
+```
+
+### Olm 1:1 encryption
+
+```python
+from fresholm.compat.olm import Account, OlmPreKeyMessage, Session
+
+# --- Key exchange setup ---
+alice = Account()
+bob = Account()
+
+bob.generate_one_time_keys(1)
+bob_otk = list(bob.one_time_keys["curve25519"].values())[0]
+bob.mark_keys_as_published()
+
+# --- Alice opens an outbound session to Bob ---
+alice_session = alice.new_outbound_session(
+    bob.identity_keys["curve25519"],
+    bob_otk,
+)
+
+# Alice sends the first message (a pre-key message)
+msg = alice_session.encrypt("Hello Bob!")
+assert isinstance(msg, OlmPreKeyMessage)   # message_type == 0
+
+# --- Bob creates an inbound session from Alice's pre-key message ---
+bob_session = bob.new_inbound_session(
+    alice.identity_keys["curve25519"],
+    msg,
+)
+
+# Bob replies (normal message)
+reply = bob_session.encrypt("Hello Alice!")
+plaintext = alice_session.decrypt(reply)
+assert plaintext == "Hello Alice!"
+
+# --- Persist and restore a session ---
+# .pickle() / .from_pickle() use vodozemac encrypted-string serialization,
+# not Python's standard library pickle module.
+blob = alice_session.pickle("my-passphrase")
+restored = Session.from_pickle(blob, "my-passphrase")
+assert restored.id == alice_session.id
+```
+
+### Megolm group encryption
+
+```python
+from fresholm.compat.olm import OutboundGroupSession, InboundGroupSession
+
+# Sender creates a group session and shares the session key out-of-band
+outbound = OutboundGroupSession()
+session_key = outbound.session_key   # share this with recipients over Olm
+
+# Each recipient constructs an inbound session from the shared key
+inbound = InboundGroupSession(session_key)
+assert inbound.id == outbound.id
+
+# Encrypt and decrypt
+ciphertext = outbound.encrypt("Hello room!")
+plaintext, message_index = inbound.decrypt(ciphertext)
+assert plaintext == "Hello room!"
+assert message_index == 0
+
+# Persist and restore
+blob = outbound.pickle("room-passphrase")
+restored = OutboundGroupSession.from_pickle(blob, "room-passphrase")
+assert restored.id == outbound.id
+```
+
+## Compatibility notes
+
+The compat layer (`fresholm.compat.olm`) matches the python-olm API as used by mautrix:
+
+- **Properties, not methods** -- `account.identity_keys`, `session.id`,
+  `outbound.session_key`, `outbound.message_index`, `inbound.first_known_index` are
+  all properties, consistent with python-olm.
+- **Subclassable** -- `from_pickle` uses `cls.__new__(cls)`, so subclasses are preserved
+  through serialisation round-trips.
+- **String passphrases** -- `pickle()` and `from_pickle()` accept `str` or `bytes`
+  passphrases (python-olm accepted only `bytes`).
+- **Import hook** -- `import fresholm.import_hook` registers `olm` in `sys.modules`;
+  no source edits needed in the consuming library.
+
+Note: despite the method name, `pickle()` and `from_pickle()` do **not** use Python's
+standard library `pickle` module. They call vodozemac's own encrypted-string
+serialization, which is safe to use with untrusted data.
+
+## Known differences from python-olm / libolm
+
+- **Serialisation format is incompatible.** Sessions serialized by libolm/python-olm
+  cannot be loaded by fresholm, and vice-versa. Both sides must re-generate sessions.
+- **No `_libolm` FFI.** Code that imports `olm._libolm` or calls C-level symbols
+  directly will break. The compat shim covers the public Python API only.
+
+## Development
+
+```bash
+git clone https://github.com/your-org/fresholm
+cd fresholm
+python -m venv .venv && source .venv/bin/activate
+pip install maturin pytest pytest-asyncio
+maturin develop
+pytest
+```
+
+Rust toolchain 1.75+ is required. Install via [rustup](https://rustup.rs).
+
+## License
+
+MIT
