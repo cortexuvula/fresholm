@@ -46,6 +46,10 @@ from fresholm.compat.olm import (
     OlmPreKeyMessage,
     PkEncryption,
     PkDecryption,
+    PkSigning,       # ed25519 cross-signing keys (mautrix.crypto)
+    Sas,             # Short Authentication String verification
+    sha256,          # SHA-256 hash (unpadded base64)
+    ed25519_verify,  # Ed25519 signature verification
 )
 ```
 
@@ -118,7 +122,24 @@ assert restored.id == outbound.id
 
 ## Compatibility notes
 
-The compat layer (`fresholm.compat.olm`) matches the python-olm API as used by mautrix:
+The compat layer (`fresholm.compat.olm`) matches the python-olm API as used by mautrix.
+
+### mautrix.crypto support
+
+`mautrix.crypto.cross_signing_key` and `mautrix.crypto.signature` require `olm.PkSigning`
+and `olm.PkSigningError`. Both are provided by the compat layer:
+
+```python
+from fresholm.compat.olm import PkSigning, PkSigningError
+
+seed = PkSigning.generate_seed()          # os.urandom(32)
+signer = PkSigning(seed)
+sig = signer.sign("canonical json")       # unpadded base64 Ed25519 signature
+pub = signer.public_key                   # unpadded base64 Ed25519 public key
+```
+
+`olm.Sas` (Short Authentication String) is also implemented for emoji/decimal verification,
+using pure Python (X25519 ECDH + HKDF-SHA256). No C library dependency.
 
 - **Properties, not methods** -- `account.identity_keys`, `session.id`,
   `outbound.session_key`, `outbound.message_index`, `inbound.first_known_index` are
