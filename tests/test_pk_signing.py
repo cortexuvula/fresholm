@@ -3,9 +3,9 @@
 import base64
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from fresholm.compat.olm import PkSigning, PkSigningError
+from fresholm.compat.olm import PkSigning
 
 
 class TestPkSigning:
