@@ -59,12 +59,16 @@ class Sas:
         return base64.b64encode(h.finalize()).rstrip(b"=").decode("ascii")
 
     def calculate_mac_long_kdf(self, message, extra_info):
+        """Legacy MAC using raw shared secret as HMAC key.
+
+        Unlike calculate_mac which derives a key via HKDF first,
+        this uses HMAC-SHA256(shared_secret, message || extra_info) directly.
+        """
         self._check()
         if isinstance(extra_info, str):
             extra_info = extra_info.encode("utf-8")
         if isinstance(message, str):
             message = message.encode("utf-8")
-        mac_key = self._hkdf(extra_info, 256)  # 256 bytes, not 32
-        h = HMAC(mac_key, SHA256())
-        h.update(message)
+        h = HMAC(self._shared_secret, SHA256())
+        h.update(message + extra_info)
         return base64.b64encode(h.finalize()).rstrip(b"=").decode("ascii")
