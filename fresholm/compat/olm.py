@@ -403,6 +403,45 @@ class InboundGroupSession:
 
 
 # ---------------------------------------------------------------------------
+# PkEncryption / PkDecryption wrappers
+# ---------------------------------------------------------------------------
+
+
+class PkEncryption:
+    """Python-olm compatible PkEncryption wrapper around vodozemac PkEncryption."""
+
+    def __init__(self, recipient_key: str):
+        from fresholm._native import PkEncryption as _NativePkEncryption
+
+        self._native = _NativePkEncryption(recipient_key)
+
+    def encrypt(self, plaintext):
+        """Encrypt plaintext. Accepts str or bytes, returns native PkMessage."""
+        if isinstance(plaintext, str):
+            plaintext = plaintext.encode("utf-8")
+        return self._native.encrypt(plaintext)
+
+
+class PkDecryption:
+    """Python-olm compatible PkDecryption wrapper around vodozemac PkDecryption."""
+
+    def __init__(self, secret_key=None):
+        from fresholm._native import PkDecryption as _NativePkDecryption
+
+        self._native = _NativePkDecryption(secret_key)
+
+    @property
+    def public_key(self) -> str:
+        """Return the public key as a base64 string."""
+        return self._native.public_key
+
+    def decrypt(self, ciphertext: str, mac: str, ephemeral_key: str) -> str:
+        """Decrypt and return plaintext as a string (UTF-8 decoded)."""
+        plaintext_bytes = self._native.decrypt(ciphertext, mac, ephemeral_key)
+        return plaintext_bytes.decode("utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Aliases for python-olm compatibility
 # ---------------------------------------------------------------------------
 
@@ -421,6 +460,8 @@ __all__ = [
     "OlmInboundGroupSession",
     "OlmMessage",
     "OlmPreKeyMessage",
+    "PkEncryption",
+    "PkDecryption",
     "OlmError",
     "OlmSessionError",
     "OlmGroupSessionError",

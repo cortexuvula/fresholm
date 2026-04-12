@@ -87,6 +87,13 @@ class TestImportHook:
 
         assert "olm" in sys.modules
 
+    def test_import_hook_installs(self):
+        import fresholm.import_hook  # noqa: F401
+        import olm
+
+        assert hasattr(olm, "PkEncryption")
+        assert hasattr(olm, "PkDecryption")
+
 
 # ---------------------------------------------------------------------------
 # TestMautrixSubclassPatterns

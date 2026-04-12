@@ -8,5 +8,6 @@ name = "fresholm_native"
 crate-type = ["cdylib"]
 
 [dependencies]
-vodozemac = "0.9"
+vodozemac = { version = "0.9", features = ["insecure-pk-encryption"] }
 pyo3 = { version = "0.28", features = ["extension-module"] }
+base64 = "0.22"
