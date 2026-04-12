@@ -1,6 +1,5 @@
 """Tests for MemoryCryptoStore."""
 
-import pytest
 
 from fresholm.crypto_store import MemoryCryptoStore
 

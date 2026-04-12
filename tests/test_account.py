@@ -3,6 +3,7 @@
 import pytest
 
 from fresholm._native import Account, OlmAccountError
+from fresholm.compat.olm import Account as CompatAccount
 
 
 class TestCreateAccount:
@@ -77,8 +78,6 @@ class TestCreateAccount:
 # ---------------------------------------------------------------------------
 # Compat layer tests
 # ---------------------------------------------------------------------------
-
-from fresholm.compat.olm import Account as CompatAccount
 
 
 class TestCompatAccount:

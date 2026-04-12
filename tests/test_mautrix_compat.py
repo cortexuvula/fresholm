@@ -14,7 +14,6 @@ serialization module.
 
 import sys
 
-import pytest
 
 from fresholm.compat.olm import (
     Account,

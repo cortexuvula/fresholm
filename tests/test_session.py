@@ -3,6 +3,12 @@
 import pytest
 
 from fresholm._native import Account, EncryptedMessage, OlmSessionError, Session
+from fresholm.compat.olm import (
+    Account as CompatAccount,
+    Session as CompatSession,
+    OlmMessage,
+    OlmPreKeyMessage,
+)
 
 
 def _create_session_pair():
@@ -122,13 +128,6 @@ class TestSessionProperties:
 # safe encrypted-string serialization.
 # ---------------------------------------------------------------------------
 
-from fresholm.compat.olm import (
-    Account as CompatAccount,
-    Session as CompatSession,
-    OlmMessage,
-    OlmPreKeyMessage,
-)
-
 
 def _create_compat_session_pair():
     """Create Alice+Bob session pair using the compat layer."""
@@ -232,16 +231,14 @@ class TestSessionMatches:
         return alice_session, first_msg, bob, alice_keys
 
     def test_matches_returns_true_for_matching(self):
-        from fresholm.compat.olm import Account
         alice_session, first_msg, bob, alice_keys = self._make_prekey_message()
         bob_session = bob.new_inbound_session(alice_keys["curve25519"], first_msg)
         assert bob_session.matches(first_msg) is True
 
     def test_matches_returns_false_for_non_matching(self):
-        from fresholm.compat.olm import Account
         _, first_msg, _, _ = self._make_prekey_message()
-        charlie = Account()
-        dave = Account()
+        charlie = CompatAccount()
+        dave = CompatAccount()
         dave.generate_one_time_keys(1)
         dave_keys = dave.identity_keys
         dave_otk = list(dave.one_time_keys["curve25519"].values())[0]

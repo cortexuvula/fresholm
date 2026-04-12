@@ -7,6 +7,11 @@ from fresholm._native import (
     InboundGroupSession,
     OlmGroupSessionError,
 )
+from fresholm.compat.olm import (
+    OutboundGroupSession as CompatOutbound,
+    InboundGroupSession as CompatInbound,
+    GroupSession as CompatGroupSession,
+)
 
 
 class TestGroupSessionCreate:
@@ -174,12 +179,6 @@ class TestRepr:
 # These test the python-olm API compatibility wrapper.
 # The serialization methods use vodozemac encrypted strings internally.
 # ---------------------------------------------------------------------------
-
-from fresholm.compat.olm import (
-    OutboundGroupSession as CompatOutbound,
-    InboundGroupSession as CompatInbound,
-    GroupSession as CompatGroupSession,
-)
 
 
 class TestCompatGroupSession:

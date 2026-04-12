@@ -276,6 +276,10 @@ class OutboundGroupSession:
 
     def __init__(self):
         self._native = _NativeGroupSession()
+        # Cache the initial session key so it always starts from index 0,
+        # matching python-olm behavior where session_key is stable across
+        # the lifetime of the session.
+        self._initial_session_key: str = self._native.session_key()
 
     @property
     def id(self) -> str:
@@ -284,8 +288,14 @@ class OutboundGroupSession:
 
     @property
     def session_key(self) -> str:
-        """Return the session key for sharing with recipients."""
-        return self._native.session_key()
+        """Return the session key for sharing with recipients.
+
+        In python-olm, session_key always returns the key that allows
+        decryption from the initial message index (0), regardless of how
+        many messages have been encrypted.  vodozemac's native session_key()
+        advances with each encryption, so we cache the initial value.
+        """
+        return self._initial_session_key
 
     @property
     def message_index(self) -> int:
@@ -318,6 +328,7 @@ class OutboundGroupSession:
         native = _NativeGroupSession.from_encrypted_string(data, key)
         obj = cls.__new__(cls)
         obj._native = native
+        obj._initial_session_key = native.session_key()
         return obj
 
     def __repr__(self) -> str:
