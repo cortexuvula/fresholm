@@ -280,7 +280,6 @@ class InboundSession(Session):
     def __init__(self, account, message, identity_key=None):
         temp = account.new_inbound_session(identity_key, message)
         self._native = temp._native
-        self._creation_plaintext = getattr(temp, "_creation_plaintext", None)
 
 
 class OutboundSession(Session):
@@ -288,7 +287,6 @@ class OutboundSession(Session):
     def __init__(self, account, identity_key, one_time_key):
         temp = account.new_outbound_session(identity_key, one_time_key)
         self._native = temp._native
-        self._creation_plaintext = None
 
 
 # ---------------------------------------------------------------------------

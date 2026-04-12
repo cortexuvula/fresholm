@@ -10,10 +10,6 @@ class OlmVerifyError(Exception):
     """Ed25519 signature verification failed."""
     pass
 
-class OlmHashError(Exception):
-    """Hash calculation error."""
-    pass
-
 def sha256(input_string):
     """SHA-256 hash, returns unpadded base64."""
     if isinstance(input_string, str):
