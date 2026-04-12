@@ -1,6 +1,5 @@
 """Tests for fresholm.compat.sas (SAS key verification)."""
 
-import base64
 
 import pytest
 

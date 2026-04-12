@@ -5,7 +5,6 @@ names required for mautrix compatibility. Internally they use vodozemac's
 safe encrypted-string serialization.
 """
 
-import pytest
 
 from fresholm.compat.olm import (
     Account,
