@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use vodozemac::olm::{OlmMessage, Session as VzSession, SessionPickle};
+use vodozemac::olm::{OlmMessage, PreKeyMessage, Session as VzSession, SessionPickle};
 
 use crate::account::passphrase_to_key;
 use crate::errors::OlmSessionError;
@@ -98,6 +98,17 @@ impl Session {
             .map_err(|e| OlmSessionError::new_err(format!("Deserialization failed: {e}")))?;
         let session = VzSession::from_pickle(sp);
         Ok(Self { inner: session })
+    }
+
+    /// Check whether a pre-key message was created using the same session keys
+    /// as this session, i.e. whether the message "matches" this session.
+    fn matches_prekey(&self, pre_key_message_bytes: &[u8]) -> bool {
+        let Ok(pre_key_msg) = PreKeyMessage::from_bytes(pre_key_message_bytes) else {
+            return false;
+        };
+        let session_keys = self.inner.session_keys();
+        let msg_keys = pre_key_msg.session_keys();
+        session_keys.session_id() == msg_keys.session_id()
     }
 
     fn __repr__(&self) -> String {

@@ -215,3 +215,42 @@ class TestCompatSession:
         restored = MySession.from_pickle(data, "sub_pass")
         assert isinstance(restored, MySession)
         assert restored.id == alice_session.id
+
+
+class TestSessionMatches:
+    def _make_prekey_message(self):
+        from fresholm.compat.olm import Account, OlmPreKeyMessage
+        alice = Account()
+        bob = Account()
+        bob.generate_one_time_keys(1)
+        bob_keys = bob.identity_keys
+        alice_keys = alice.identity_keys
+        bob_otk = list(bob.one_time_keys["curve25519"].values())[0]
+        alice_session = alice.new_outbound_session(bob_keys["curve25519"], bob_otk)
+        first_msg = alice_session.encrypt("hello")
+        assert isinstance(first_msg, OlmPreKeyMessage)
+        return alice_session, first_msg, bob, alice_keys
+
+    def test_matches_returns_true_for_matching(self):
+        from fresholm.compat.olm import Account
+        alice_session, first_msg, bob, alice_keys = self._make_prekey_message()
+        bob_session = bob.new_inbound_session(alice_keys["curve25519"], first_msg)
+        assert bob_session.matches(first_msg) is True
+
+    def test_matches_returns_false_for_non_matching(self):
+        from fresholm.compat.olm import Account
+        _, first_msg, _, _ = self._make_prekey_message()
+        charlie = Account()
+        dave = Account()
+        dave.generate_one_time_keys(1)
+        dave_keys = dave.identity_keys
+        dave_otk = list(dave.one_time_keys["curve25519"].values())[0]
+        charlie_session = charlie.new_outbound_session(dave_keys["curve25519"], dave_otk)
+        assert charlie_session.matches(first_msg) is False
+
+    def test_matches_returns_false_for_normal_message(self):
+        from fresholm.compat.olm import OlmMessage
+        msg = OlmMessage(b"not a prekey")
+        alice_session, first_msg, bob, alice_keys = self._make_prekey_message()
+        bob_session = bob.new_inbound_session(alice_keys["curve25519"], first_msg)
+        assert bob_session.matches(msg) is False

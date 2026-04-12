@@ -227,11 +227,12 @@ class Session:
         return plaintext_bytes.decode("utf-8")
 
     def matches(self, message) -> bool:
-        """Check if a pre-key message matches this session.
-
-        Not yet fully implemented; returns False.
-        """
-        return False
+        """Check if a pre-key message matches this session."""
+        if not hasattr(message, 'ciphertext') or not hasattr(message, 'message_type'):
+            return False
+        if message.message_type != 0:
+            return False
+        return self._native.matches_prekey(message.ciphertext)
 
     def describe(self) -> str:
         """Return a human-readable description of the session."""
