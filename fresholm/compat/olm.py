@@ -267,6 +267,29 @@ class Session:
 
 
 # ---------------------------------------------------------------------------
+# InboundSession / OutboundSession wrappers (matrix-nio compatibility)
+# ---------------------------------------------------------------------------
+
+
+class InboundSession(Session):
+    """Inbound Olm session from a received pre-key message."""
+    def __init__(self, account, message, identity_key=None):
+        if identity_key is None:
+            identity_key = ""
+        temp = account.new_inbound_session(identity_key, message)
+        self._native = temp._native
+        self._creation_plaintext = getattr(temp, "_creation_plaintext", None)
+
+
+class OutboundSession(Session):
+    """Outbound Olm session to a recipient."""
+    def __init__(self, account, identity_key, one_time_key):
+        temp = account.new_outbound_session(identity_key, one_time_key)
+        self._native = temp._native
+        self._creation_plaintext = None
+
+
+# ---------------------------------------------------------------------------
 # Outbound Group Session wrapper
 # ---------------------------------------------------------------------------
 
