@@ -144,18 +144,19 @@ class Account:
         sess._native = native_session
         return sess
 
-    def new_inbound_session(self, sender_key: str, message: OlmPreKeyMessage) -> "Session":
+    def new_inbound_session(self, sender_key, message: OlmPreKeyMessage) -> "Session":
         """Create a new inbound Olm session from a pre-key message.
 
         Args:
-            sender_key: The sender's curve25519 identity key.
+            sender_key: The sender's curve25519 identity key (str or None).
+                       If None, the key is extracted from the pre-key message.
             message: An OlmPreKeyMessage containing the initial pre-key ciphertext.
 
         Returns:
             A Session object for communicating with the sender.
         """
         native_session, _plaintext = self._native.create_inbound_session(
-            sender_key, message.ciphertext
+            sender_key or None, message.ciphertext
         )
         sess = Session.__new__(Session)
         sess._native = native_session
@@ -277,8 +278,6 @@ class Session:
 class InboundSession(Session):
     """Inbound Olm session from a received pre-key message."""
     def __init__(self, account, message, identity_key=None):
-        if identity_key is None:
-            identity_key = ""
         temp = account.new_inbound_session(identity_key, message)
         self._native = temp._native
         self._creation_plaintext = getattr(temp, "_creation_plaintext", None)
@@ -320,8 +319,14 @@ class OutboundGroupSession:
         decryption from the initial message index (0), regardless of how
         many messages have been encrypted.  vodozemac's native session_key()
         advances with each encryption, so we cache the initial value.
+
+        For sessions restored via from_pickle, the initial key is not
+        available (vodozemac doesn't persist it separately), so we fall
+        back to the native session_key() at the current ratchet index.
         """
-        return self._initial_session_key
+        if self._initial_session_key is not None:
+            return self._initial_session_key
+        return self._native.session_key()
 
     @property
     def message_index(self) -> int:
@@ -354,7 +359,7 @@ class OutboundGroupSession:
         native = _NativeGroupSession.from_encrypted_string(data, key)
         obj = cls.__new__(cls)
         obj._native = native
-        obj._initial_session_key = native.session_key()
+        obj._initial_session_key = None  # not available after deserialization
         return obj
 
     def __repr__(self) -> str:

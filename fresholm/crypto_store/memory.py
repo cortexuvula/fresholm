@@ -5,6 +5,15 @@ from typing import Optional
 from .base import BaseCryptoStore
 
 
+def _get_session_id(session) -> str:
+    """Get session ID from either a native session (.session_id()) or compat session (.id)."""
+    if hasattr(session, "session_id") and callable(session.session_id):
+        return session.session_id()
+    if hasattr(session, "id"):
+        return session.id
+    raise TypeError(f"Cannot get session ID from {type(session)}")
+
+
 class MemoryCryptoStore(BaseCryptoStore):
     """Non-persistent, in-memory crypto store for testing and short-lived use."""
 
@@ -29,10 +38,10 @@ class MemoryCryptoStore(BaseCryptoStore):
         self._sessions.setdefault(sender_key, []).append(session)
 
     async def update_session(self, sender_key: str, session) -> None:
-        sid = session.session_id()
+        sid = _get_session_id(session)
         sessions = self._sessions.get(sender_key, [])
         for i, existing in enumerate(sessions):
-            if existing.session_id() == sid:
+            if _get_session_id(existing) == sid:
                 sessions[i] = session
                 return
         # Not found — append as new
@@ -41,7 +50,7 @@ class MemoryCryptoStore(BaseCryptoStore):
     async def delete_session(self, sender_key: str, session_id: str) -> None:
         sessions = self._sessions.get(sender_key, [])
         self._sessions[sender_key] = [
-            s for s in sessions if s.session_id() != session_id
+            s for s in sessions if _get_session_id(s) != session_id
         ]
 
     async def delete_all_sessions(self, sender_key: str) -> None:

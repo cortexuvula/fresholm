@@ -86,15 +86,20 @@ impl Account {
 
     /// Create an inbound Olm session from a pre-key message.
     /// Returns (Session, plaintext_bytes).
+    /// If their_identity_key is None or empty, extracts it from the PreKeyMessage.
+    #[pyo3(signature = (their_identity_key, pre_key_message_bytes))]
     fn create_inbound_session(
         &mut self,
-        their_identity_key: &str,
+        their_identity_key: Option<&str>,
         pre_key_message_bytes: &[u8],
     ) -> PyResult<(Session, Vec<u8>)> {
-        let identity = Curve25519PublicKey::from_base64(their_identity_key)
-            .map_err(|e| OlmAccountError::new_err(format!("Invalid identity key: {e}")))?;
         let pre_key_message = PreKeyMessage::from_bytes(pre_key_message_bytes)
             .map_err(|e| OlmAccountError::new_err(format!("Invalid pre-key message: {e}")))?;
+        let identity = match their_identity_key {
+            Some(key) if !key.is_empty() => Curve25519PublicKey::from_base64(key)
+                .map_err(|e| OlmAccountError::new_err(format!("Invalid identity key: {e}")))?,
+            _ => pre_key_message.identity_key(),
+        };
         let result = self
             .inner
             .create_inbound_session(identity, &pre_key_message)
