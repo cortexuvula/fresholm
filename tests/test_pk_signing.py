@@ -36,9 +36,9 @@ class TestPkSigning:
         signer = PkSigning(PkSigning.generate_seed())
         sig = signer.sign("hello")
         # Verify using cryptography directly
-        pub_bytes = base64.b64decode(signer.public_key + "=")
+        pub_bytes = base64.b64decode(signer.public_key + "==")
         pub_key = Ed25519PublicKey.from_public_bytes(pub_bytes)
-        sig_bytes = base64.b64decode(sig + "=")
+        sig_bytes = base64.b64decode(sig + "==")
         pub_key.verify(sig_bytes, b"hello")
 
     def test_sign_bytes(self):
