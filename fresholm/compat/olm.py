@@ -25,6 +25,9 @@ from .types import (
     OlmSessionError,
     _passphrase_to_bytes,
 )
+from .sas import Sas, OlmSasError
+from . import utility
+from .utility import sha256, ed25519_verify, OlmVerifyError
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +490,8 @@ OlmInboundGroupSession = InboundGroupSession
 __all__ = [
     "Account",
     "Session",
+    "InboundSession",
+    "OutboundSession",
     "OutboundGroupSession",
     "GroupSession",
     "InboundGroupSession",
@@ -497,9 +502,15 @@ __all__ = [
     "OlmPreKeyMessage",
     "PkEncryption",
     "PkDecryption",
+    "Sas",
+    "sha256",
+    "ed25519_verify",
+    "utility",
     "OlmError",
     "OlmSessionError",
     "OlmGroupSessionError",
     "OlmAccountError",
+    "OlmSasError",
+    "OlmVerifyError",
     "CryptoStoreError",
 ]

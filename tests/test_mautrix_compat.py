@@ -475,3 +475,76 @@ class TestAliases:
 
     def test_group_session_is_outbound_group_session(self):
         assert GroupSession is OutboundGroupSession
+
+
+# ---------------------------------------------------------------------------
+# TestMatrixNioCompat - integration tests for matrix-nio compatibility
+# ---------------------------------------------------------------------------
+
+
+class TestMatrixNioCompat:
+    """Verify that all matrix-nio required items are accessible through the olm module."""
+
+    def test_inbound_session_accessible(self):
+        from fresholm.compat import olm
+        assert hasattr(olm, "InboundSession")
+
+    def test_outbound_session_accessible(self):
+        from fresholm.compat import olm
+        assert hasattr(olm, "OutboundSession")
+
+    def test_sas_accessible(self):
+        from fresholm.compat import olm
+        assert hasattr(olm, "Sas")
+
+    def test_sha256_accessible(self):
+        from fresholm.compat import olm
+        assert hasattr(olm, "sha256")
+
+    def test_ed25519_verify_accessible(self):
+        from fresholm.compat import olm
+        assert hasattr(olm, "ed25519_verify")
+
+    def test_utility_module_accessible(self):
+        from fresholm.compat import olm
+        assert hasattr(olm, "utility")
+
+    def test_utility_olm_verify_error_accessible(self):
+        from fresholm.compat import olm
+        assert hasattr(olm.utility, "OlmVerifyError")
+
+    def test_sha256_works(self):
+        from fresholm.compat import olm
+        result = olm.sha256("test")
+        assert isinstance(result, str)
+        assert len(result) > 0
+        assert "=" not in result
+
+    def test_sas_key_exchange_through_olm(self):
+        from fresholm.compat import olm
+        sas1 = olm.Sas()
+        sas2 = olm.Sas()
+        sas1.set_their_pubkey(sas2.pubkey)
+        sas2.set_their_pubkey(sas1.pubkey)
+        mac1 = sas1.calculate_mac("msg", "info")
+        mac2 = sas2.calculate_mac("msg", "info")
+        assert mac1 == mac2
+
+    def test_utility_olm_verify_error_catchable(self):
+        from fresholm.compat import olm
+        try:
+            raise olm.utility.OlmVerifyError("test error")
+        except olm.utility.OlmVerifyError as e:
+            assert "test error" in str(e)
+
+    def test_outbound_session_through_olm(self):
+        from fresholm.compat import olm
+        alice = olm.Account()
+        bob = olm.Account()
+        bob.generate_one_time_keys(1)
+        bob_otk = list(bob.one_time_keys["curve25519"].values())[0]
+        bob.mark_keys_as_published()
+        sess = olm.OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
+        assert isinstance(sess, olm.Session)
+        msg = sess.encrypt("hello")
+        assert msg.message_type == 0
