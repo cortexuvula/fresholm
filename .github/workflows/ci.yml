@@ -26,5 +26,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install maturin pytest pytest-asyncio
-      - run: maturin develop --release
+      - run: maturin build --release -o dist
+      - run: pip install dist/*.whl
       - run: pytest tests/ -v
