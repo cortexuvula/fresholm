@@ -176,11 +176,13 @@ class Account:
         return self._native.to_encrypted_string(key).encode("utf-8")
 
     @classmethod
-    def from_pickle(cls, data, passphrase="") -> "Account":
+    def from_pickle(cls, data, passphrase="", **kwargs) -> "Account":
         """Deserialize an account from bytes data and passphrase.
 
         Supports subclassing via cls.__new__(cls).
         Uses vodozemac's safe encrypted-string deserialization internally.
+        
+        Extra kwargs (shared, etc.) are accepted for mautrix compatibility but ignored.
         """
         key = _passphrase_to_bytes(passphrase)
         if isinstance(data, bytes):
@@ -251,10 +253,13 @@ class Session:
         return self._native.to_encrypted_string(key).encode("utf-8")
 
     @classmethod
-    def from_pickle(cls, data, passphrase="") -> "Session":
+    def from_pickle(cls, data, passphrase="", **kwargs) -> "Session":
         """Deserialize a session from bytes data and passphrase.
 
         Uses vodozemac's safe encrypted-string deserialization internally.
+        
+        Extra kwargs (creation_time, last_encrypted, last_decrypted, etc.) 
+        are accepted for mautrix compatibility but ignored.
         """
         key = _passphrase_to_bytes(passphrase)
         if isinstance(data, bytes):
@@ -346,10 +351,12 @@ class OutboundGroupSession:
         return self._native.to_encrypted_string(key).encode("utf-8")
 
     @classmethod
-    def from_pickle(cls, data, passphrase="") -> "OutboundGroupSession":
+    def from_pickle(cls, data, passphrase="", **kwargs) -> "OutboundGroupSession":
         """Deserialize an outbound group session from bytes data and passphrase.
 
         Uses vodozemac's safe encrypted-string deserialization internally.
+        
+        Extra kwargs are accepted for mautrix compatibility but ignored.
         """
         key = _passphrase_to_bytes(passphrase)
         if isinstance(data, bytes):
@@ -426,10 +433,13 @@ class InboundGroupSession:
         return self._native.to_encrypted_string(key).encode("utf-8")
 
     @classmethod
-    def from_pickle(cls, data, passphrase="") -> "InboundGroupSession":
+    def from_pickle(cls, data, passphrase="", **kwargs) -> "InboundGroupSession":
         """Deserialize an inbound group session from bytes data and passphrase.
 
         Uses vodozemac's safe encrypted-string deserialization internally.
+        
+        Extra kwargs (signing_key, sender_key, room_id, etc.) 
+        are accepted for mautrix compatibility but ignored.
         """
         key = _passphrase_to_bytes(passphrase)
         if isinstance(data, bytes):
