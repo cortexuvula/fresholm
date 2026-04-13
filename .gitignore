@@ -33,3 +33,6 @@ env/
 
 # Environment
 .env
+
+# Session state
+.remember/
