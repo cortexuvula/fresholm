@@ -14,6 +14,9 @@ dependencies = ["cryptography>=41.0"]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
+    # Plain mautrix (not mautrix[e2be]) — the e2be extra would pull python-olm,
+    # which fails to build on macOS ARM64 / CMake 3.28+. Integration tests use
+    # fresholm's import hook instead of co-installing python-olm.
     "mautrix>=0.21",
 ]
 

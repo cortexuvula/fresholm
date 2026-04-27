@@ -29,18 +29,28 @@ def test_import_hook_makes_olm_resolve_to_fresholm():
 
 def test_mautrix_crypto_imports_against_fresholm():
     """mautrix.crypto loads successfully against fresholm's import hook + _libolm
-    stub. Verified empirically against mautrix 0.21:
+    stub. Verifies the hook's observable side effects rather than relying on
+    identity checks against mautrix.crypto's namespace, because:
 
     - mautrix.crypto does NOT re-export PkSigning or Account at the module
       level, so an identity check on those would be a no-op (vacuous pass).
-      The check is omitted to avoid false confidence.
     - mautrix.crypto.Session exists but is mautrix's own wrapper class, not
-      fresholm's Session. callable() is the strongest assertion that's true.
+      fresholm's Session — identity would fail even when everything is correct.
+
+    Instead, assert that the _libolm stub the hook installs is what mautrix
+    actually got at its `from _libolm import ffi, lib`.
     """
     import mautrix.crypto  # noqa: F401
 
-    assert callable(mautrix.crypto.Session), \
-        "mautrix.crypto.Session is not callable"
+    libolm = sys.modules.get("_libolm")
+    assert libolm is not None, "fresholm.import_hook did not install _libolm stub"
+    assert libolm.ffi is None, f"_libolm stub ffi should be None, got {libolm.ffi!r}"
+    assert libolm.lib is None, f"_libolm stub lib should be None, got {libolm.lib!r}"
+
+    # Sanity check: mautrix.crypto.Session must exist (otherwise the import
+    # would have failed) — this guards against silent regressions in the
+    # mautrix layer above the stub.
+    assert hasattr(mautrix.crypto, "Session"), "mautrix.crypto.Session missing"
 
 
 # Regression test for commit 4058c6c — mautrix>=0.21 passes additional kwargs
