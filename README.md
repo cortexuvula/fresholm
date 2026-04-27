@@ -168,10 +168,13 @@ serialization, which is safe to use with untrusted data.
 git clone https://github.com/your-org/fresholm
 cd fresholm
 python -m venv .venv && source .venv/bin/activate
-pip install maturin pytest pytest-asyncio
+pip install maturin
 maturin develop
+pip install -e ".[dev]"
 pytest
 ```
+
+The `[dev]` extra includes `pytest`, `pytest-asyncio`, and `mautrix` (for integration tests in `tests/test_mautrix_integration.py`). Without `[dev]`, the integration tests self-skip via `pytest.importorskip`.
 
 Rust toolchain 1.75+ is required. Install via [rustup](https://rustup.rs).
 
