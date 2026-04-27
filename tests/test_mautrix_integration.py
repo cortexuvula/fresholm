@@ -210,10 +210,21 @@ async def test_olm_machine_constructs_with_fresholm_memory_store():
     # A real mautrix.client.Client is not needed — a minimal duck-typed stub
     # that exposes add_event_handler() and the backing dict is sufficient.
     class _FakeClient:
+        """Minimum surface required by mautrix.crypto.OlmMachine.__init__.
+
+        Note: this couples to a mautrix implementation detail — that
+        OlmMachine.__init__ calls client.add_event_handler() and that mautrix
+        expects event_handlers / global_event_handlers dicts to exist on the
+        client. If mautrix changes its handler-registration mechanism in a
+        future release, this stub will need to be updated.
+        """
+
         mxid = "@bot:example.org"
         device_id = "TESTDEVICE"
-        event_handlers: dict = {}
-        global_event_handlers: dict = {}
+
+        def __init__(self):
+            self.event_handlers: dict = {}
+            self.global_event_handlers: dict = {}
 
         def add_event_handler(self, event_type, handler, wait_sync=False, sync_stream=None):
             self.event_handlers.setdefault(event_type, {})[handler] = {
