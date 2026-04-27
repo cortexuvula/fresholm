@@ -175,3 +175,62 @@ def test_pk_signing_via_mautrix_signs_and_verifies():
 
     # Verify: the signature mautrix produced validates against fresholm's verifier.
     ed25519_verify(pub, expected_signed_message, signature)  # raises on failure
+
+
+# ---------------------------------------------------------------------------
+# Scenario 4: OlmMachine smoke construction
+# ---------------------------------------------------------------------------
+# Step 1 findings:
+#   OlmMachine.__init__(client, crypto_store, state_store, log=None)
+#   - client: mautrix.client.Client (duck-typed; needs add_event_handler() +
+#     event_handlers dict, because __init__ registers 5 event handlers via
+#     client.add_event_handler at the end of __init__).
+#   - crypto_store: CryptoStore protocol (fresholm.crypto_store.MemoryCryptoStore)
+#   - state_store: StateStore protocol (duck-typed SimpleNamespace is sufficient)
+#   - log: optional TraceLogger (defaults to logging.getLogger)
+#
+#   __init__ does NOT touch OlmAccount, does NOT call load(), and does NOT
+#   exercise CFFI — it only assigns attributes, sets up asyncio.Lock()s, and
+#   calls client.add_event_handler() five times.  No _libolm stub risk.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_olm_machine_constructs_with_fresholm_memory_store():
+    """mautrix.crypto.OlmMachine instantiates against fresholm's
+    MemoryCryptoStore without raising. Does not run a full Matrix sync."""
+    from mautrix.crypto import OlmMachine
+    from fresholm.crypto_store import MemoryCryptoStore
+    from types import SimpleNamespace
+
+    crypto_store = MemoryCryptoStore()
+    fake_state_store = SimpleNamespace()
+
+    # OlmMachine.__init__ calls client.add_event_handler() five times.
+    # A real mautrix.client.Client is not needed — a minimal duck-typed stub
+    # that exposes add_event_handler() and the backing dict is sufficient.
+    class _FakeClient:
+        mxid = "@bot:example.org"
+        device_id = "TESTDEVICE"
+        event_handlers: dict = {}
+        global_event_handlers: dict = {}
+
+        def add_event_handler(self, event_type, handler, wait_sync=False, sync_stream=None):
+            self.event_handlers.setdefault(event_type, {})[handler] = {
+                "wait_sync": wait_sync,
+                "sync_stream": sync_stream,
+            }
+
+    fake_client = _FakeClient()
+
+    machine = OlmMachine(
+        client=fake_client,
+        crypto_store=crypto_store,
+        state_store=fake_state_store,
+    )
+
+    # Smoke check — instantiation completed without raising.
+    assert machine is not None
+    # Confirm that event handlers were registered (OlmMachine registers
+    # multiple handlers in __init__; exact count may vary by mautrix version).
+    assert len(fake_client.event_handlers) >= 1
