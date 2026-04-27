@@ -36,3 +36,6 @@ env/
 
 # Session state
 .remember/
+
+# Worktrees
+.worktrees/
