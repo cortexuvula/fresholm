@@ -10,6 +10,13 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = ["cryptography>=41.0"]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "mautrix>=0.21",
+]
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "."
