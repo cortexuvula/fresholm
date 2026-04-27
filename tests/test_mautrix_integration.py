@@ -41,3 +41,72 @@ def test_mautrix_crypto_imports_against_fresholm():
 
     assert callable(mautrix.crypto.Session), \
         "mautrix.crypto.Session is not callable"
+
+
+# Regression test for commit 4058c6c — mautrix>=0.21 passes additional kwargs
+# through to *.from_pickle(). The compat layer must accept and ignore them.
+
+# Kwargs discovered from mautrix source (Step 1 of Task 4). Update if mautrix
+# adds more in a future release.
+#
+# Known set from commit 4058c6c: shared, creation_time, last_encrypted,
+# last_decrypted, signing_key, sender_key, room_id.
+#
+# Additional kwargs found in mautrix source during Step 1 discovery:
+#   forwarding_chain, ratchet_safety, received_at, max_age, max_messages,
+#   is_scheduled (InboundGroupSession.from_pickle)
+#   use_time, message_count (OutboundGroupSession.from_pickle)
+MAUTRIX_FROM_PICKLE_KWARGS = {
+    "shared": True,
+    "creation_time": 0,
+    "last_encrypted": 0,
+    "last_decrypted": 0,
+    "signing_key": "fake_signing_key",
+    "sender_key": "fake_sender_key",
+    "room_id": "!room:example.org",
+    "forwarding_chain": [],
+    "ratchet_safety": None,
+    "received_at": None,
+    "max_age": None,
+    "max_messages": None,
+    "is_scheduled": False,
+    "use_time": None,
+    "message_count": 0,
+}
+
+
+def test_account_from_pickle_accepts_mautrix_kwargs():
+    from fresholm.compat.olm import Account
+    acct = Account()
+    blob = acct.pickle("test-passphrase")
+    restored = Account.from_pickle(blob, "test-passphrase", **MAUTRIX_FROM_PICKLE_KWARGS)
+    assert restored.identity_keys == acct.identity_keys
+
+
+def test_session_from_pickle_accepts_mautrix_kwargs():
+    from fresholm.compat.olm import Account, Session
+    alice, bob = Account(), Account()
+    bob.generate_one_time_keys(1)
+    bob_otk = next(iter(bob.one_time_keys["curve25519"].values()))
+    bob.mark_keys_as_published()
+    sess = alice.new_outbound_session(bob.identity_keys["curve25519"], bob_otk)
+    blob = sess.pickle("test-passphrase")
+    restored = Session.from_pickle(blob, "test-passphrase", **MAUTRIX_FROM_PICKLE_KWARGS)
+    assert restored.id == sess.id
+
+
+def test_outbound_group_session_from_pickle_accepts_mautrix_kwargs():
+    from fresholm.compat.olm import OutboundGroupSession
+    out = OutboundGroupSession()
+    blob = out.pickle("test-passphrase")
+    restored = OutboundGroupSession.from_pickle(blob, "test-passphrase", **MAUTRIX_FROM_PICKLE_KWARGS)
+    assert restored.id == out.id
+
+
+def test_inbound_group_session_from_pickle_accepts_mautrix_kwargs():
+    from fresholm.compat.olm import OutboundGroupSession, InboundGroupSession
+    out = OutboundGroupSession()
+    inb = InboundGroupSession(out.session_key)
+    blob = inb.pickle("test-passphrase")
+    restored = InboundGroupSession.from_pickle(blob, "test-passphrase", **MAUTRIX_FROM_PICKLE_KWARGS)
+    assert restored.id == inb.id
