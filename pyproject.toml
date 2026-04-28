@@ -18,12 +18,13 @@ dev = [
     # which fails to build on macOS ARM64 / CMake 3.28+. Integration tests use
     # fresholm's import hook instead of co-installing python-olm.
     "mautrix>=0.21",
-    # mautrix.crypto.signature imports unpaddedbase64 and pycryptodome
-    # (Crypto.*) at module level. Both ship in mautrix's e2be extra; we install
-    # plain mautrix and pull these directly — pure Python / standalone wheels,
-    # no python-olm transitive.
+    # mautrix.crypto needs the same deps as its `encryption` extra minus
+    # python-olm (fresholm replaces that). Pulled in directly because
+    # mautrix[encryption] would drag python-olm, which fails to build on macOS
+    # ARM64 / CMake 3.28+.
     "unpaddedbase64>=2.1",
     "pycryptodome>=3.20",
+    "base58>=2.1",
 ]
 
 [tool.maturin]
