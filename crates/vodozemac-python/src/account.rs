@@ -12,10 +12,6 @@ use crate::pickle_format::{
 };
 use crate::session::Session;
 
-// TODO(Task6): remove this shim once session.rs / group_session.rs /
-// inbound_group_session.rs have been migrated to import directly from
-// crate::pickle_format::passphrase_to_key_v1.
-pub(crate) use crate::pickle_format::passphrase_to_key_v1 as passphrase_to_key;
 
 #[pyclass]
 pub struct Account {

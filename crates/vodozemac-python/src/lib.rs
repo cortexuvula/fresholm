@@ -23,5 +23,6 @@ fn fresholm_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(account::_v1_encrypt_account_for_testing, m)?)?;
     m.add_function(wrap_pyfunction!(session::_v1_encrypt_session_for_testing, m)?)?;
     m.add_function(wrap_pyfunction!(group_session::_v1_encrypt_group_session_for_testing, m)?)?;
+    m.add_function(wrap_pyfunction!(inbound_group_session::_v1_encrypt_inbound_group_session_for_testing, m)?)?;
     Ok(())
 }
