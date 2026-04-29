@@ -215,13 +215,31 @@ class Session:
         # Normally created via Account.new_outbound_session / new_inbound_session
         self._native = None
 
+    def _check_initialized(self) -> None:
+        """Raise if the session has no native backing.
+
+        Bare Session() construction (without going through
+        Account.new_outbound_session, Account.new_inbound_session, or
+        Session.from_pickle) leaves _native=None. Catch this in every
+        instance method so callers see a typed OlmSessionError instead of
+        AttributeError.
+        """
+        if self._native is None:
+            raise OlmSessionError(
+                "Session is uninitialized. Construct via "
+                "Account.new_outbound_session(), Account.new_inbound_session(), "
+                "or Session.from_pickle()."
+            )
+
     @property
     def id(self) -> str:
         """Return the session ID."""
+        self._check_initialized()
         return self._native.session_id()
 
     def encrypt(self, plaintext) -> OlmMessage | OlmPreKeyMessage:
         """Encrypt plaintext. Accepts str or bytes, returns message wrapper."""
+        self._check_initialized()
         if isinstance(plaintext, str):
             plaintext = plaintext.encode("utf-8")
         native_msg = self._native.encrypt(plaintext)
@@ -229,11 +247,13 @@ class Session:
 
     def decrypt(self, message) -> str:
         """Decrypt a message. Takes OlmMessage/OlmPreKeyMessage, returns str."""
+        self._check_initialized()
         plaintext_bytes = self._native.decrypt(message.message_type, message.ciphertext)
         return plaintext_bytes.decode("utf-8")
 
     def matches(self, message) -> bool:
         """Check if a pre-key message matches this session."""
+        self._check_initialized()
         if not hasattr(message, 'ciphertext') or not hasattr(message, 'message_type'):
             return False
         if message.message_type != 0:
@@ -242,6 +262,7 @@ class Session:
 
     def describe(self) -> str:
         """Return a human-readable description of the session."""
+        self._check_initialized()
         return f"Session(id={self.id})"
 
     def pickle(self, passphrase="") -> bytes:
@@ -249,6 +270,7 @@ class Session:
 
         Uses vodozemac's safe encrypted-string serialization internally.
         """
+        self._check_initialized()
         key = _passphrase_to_bytes(passphrase)
         return self._native.to_encrypted_string(key).encode("utf-8")
 

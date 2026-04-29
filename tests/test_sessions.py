@@ -5,6 +5,7 @@ names required for mautrix compatibility. Internally they use vodozemac's
 safe encrypted-string serialization.
 """
 
+import pytest
 
 from fresholm.compat.olm import (
     Account,
@@ -163,3 +164,55 @@ class TestMatrixNioPatterns:
         data = out_sess.pickle("pass")
         restored = Session.from_pickle(data, "pass")
         assert restored.id == out_sess.id
+
+
+# ---------------------------------------------------------------------------
+# Session uninitialized-state guards (Bug 1)
+# ---------------------------------------------------------------------------
+
+
+class TestUninitializedSession:
+    """A bare Session() (not via Account or from_pickle) has _native=None.
+    Each instance method must raise OlmSessionError, not AttributeError.
+    """
+
+    def test_id_raises(self):
+        from fresholm.compat.olm import OlmSessionError
+        sess = Session()
+        with pytest.raises(OlmSessionError):
+            _ = sess.id
+
+    def test_encrypt_raises(self):
+        from fresholm.compat.olm import OlmSessionError
+        sess = Session()
+        with pytest.raises(OlmSessionError):
+            sess.encrypt("hello")
+
+    def test_decrypt_raises(self):
+        from fresholm.compat.olm import OlmSessionError
+        sess = Session()
+        with pytest.raises(OlmSessionError):
+            sess.decrypt(OlmMessage(b"deadbeef"))
+
+    def test_matches_raises(self):
+        from fresholm.compat.olm import OlmSessionError
+        sess = Session()
+        with pytest.raises(OlmSessionError):
+            sess.matches(OlmPreKeyMessage(b"deadbeef"))
+
+    def test_describe_raises(self):
+        from fresholm.compat.olm import OlmSessionError
+        sess = Session()
+        with pytest.raises(OlmSessionError):
+            sess.describe()
+
+    def test_pickle_raises(self):
+        from fresholm.compat.olm import OlmSessionError
+        sess = Session()
+        with pytest.raises(OlmSessionError):
+            sess.pickle()
+
+    def test_repr_does_not_raise(self):
+        # __repr__ already had the guard before this fix; verify it stays graceful.
+        sess = Session()
+        assert repr(sess) == "Session(uninitialized)"
