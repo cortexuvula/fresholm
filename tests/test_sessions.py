@@ -216,3 +216,110 @@ class TestUninitializedSession:
         # __repr__ already had the guard before this fix; verify it stays graceful.
         sess = Session()
         assert repr(sess) == "Session(uninitialized)"
+
+
+# ---------------------------------------------------------------------------
+# Initial pre-key plaintext stash (Bug 2)
+# ---------------------------------------------------------------------------
+
+
+class TestInboundSessionInitialPlaintext:
+    """vodozemac's create_inbound_session decrypts the initial pre-key message
+    as part of session establishment. The compat layer must surface that
+    plaintext on a subsequent session.decrypt(prekey_msg) call to match
+    python-olm's two-step contract used by mautrix-python and matrix-nio.
+    """
+
+    def test_decrypt_initial_prekey_via_inbound_session(self):
+        """python-olm two-step: InboundSession then decrypt(same prekey)."""
+        from fresholm.compat.olm import OlmPreKeyMessage  # noqa: F401
+        alice, bob, bob_otk = _setup_alice_bob()
+        out_sess = OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
+        prekey_msg = out_sess.encrypt("Hello Bob!")
+
+        in_sess = InboundSession(
+            bob, prekey_msg, identity_key=alice.identity_keys["curve25519"]
+        )
+
+        plaintext = in_sess.decrypt(prekey_msg)
+        assert plaintext == "Hello Bob!"
+
+    def test_decrypt_initial_prekey_via_account_new_inbound_session(self):
+        """Same pattern, but via Account.new_inbound_session directly."""
+        alice, bob, bob_otk = _setup_alice_bob()
+        out_sess = alice.new_outbound_session(bob.identity_keys["curve25519"], bob_otk)
+        prekey_msg = out_sess.encrypt("Hello Bob!")
+
+        in_sess = bob.new_inbound_session(
+            alice.identity_keys["curve25519"], prekey_msg
+        )
+
+        assert in_sess.decrypt(prekey_msg) == "Hello Bob!"
+
+    def test_decrypt_initial_prekey_then_subsequent_messages(self):
+        """Stash consumption does not break later normal decrypts."""
+        alice, bob, bob_otk = _setup_alice_bob()
+        out_sess = OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
+        prekey_msg = out_sess.encrypt("First")
+
+        in_sess = InboundSession(
+            bob, prekey_msg, identity_key=alice.identity_keys["curve25519"]
+        )
+
+        assert in_sess.decrypt(prekey_msg) == "First"
+
+        msg2 = out_sess.encrypt("Second")
+        assert in_sess.decrypt(msg2) == "Second"
+
+    def test_decrypt_initial_prekey_only_works_once(self):
+        """Calling decrypt(prekey) a second time fails — stash is one-shot."""
+        from fresholm.compat.olm import OlmSessionError
+        alice, bob, bob_otk = _setup_alice_bob()
+        out_sess = OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
+        prekey_msg = out_sess.encrypt("First")
+        in_sess = InboundSession(
+            bob, prekey_msg, identity_key=alice.identity_keys["curve25519"]
+        )
+
+        assert in_sess.decrypt(prekey_msg) == "First"
+
+        with pytest.raises(OlmSessionError):
+            in_sess.decrypt(prekey_msg)
+
+    def test_skipping_prekey_decrypt_does_not_break_later_decrypts(self):
+        """Caller never decrypts the prekey; session still works for normal msgs."""
+        alice, bob, bob_otk = _setup_alice_bob()
+        out_sess = OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
+        prekey_msg = out_sess.encrypt("First (skipped)")
+        in_sess = InboundSession(
+            bob, prekey_msg, identity_key=alice.identity_keys["curve25519"]
+        )
+
+        msg2 = out_sess.encrypt("Second")
+        assert in_sess.decrypt(msg2) == "Second"
+
+    def test_outbound_session_has_no_stash(self):
+        """OutboundSession is created without a stashed plaintext."""
+        alice, bob, bob_otk = _setup_alice_bob()
+        out_sess = OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
+        assert out_sess._stashed_prekey_plaintext is None
+
+    def test_pickle_does_not_persist_stash(self):
+        """Stash is in-memory only; pickle/from_pickle drop it.
+
+        This documents that pickle-then-decrypt-initial-prekey is unsupported.
+        Real callers either decrypt-then-pickle, or pickle-then-discard.
+        """
+        alice, bob, bob_otk = _setup_alice_bob()
+        out_sess = OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
+        prekey_msg = out_sess.encrypt("Initial")
+        in_sess = InboundSession(
+            bob, prekey_msg, identity_key=alice.identity_keys["curve25519"]
+        )
+
+        assert in_sess._stashed_prekey_plaintext is not None
+
+        blob = in_sess.pickle("pw")
+        restored = Session.from_pickle(blob, "pw")
+
+        assert restored._stashed_prekey_plaintext is None

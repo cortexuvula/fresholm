@@ -142,10 +142,17 @@ class Account:
         native_session = self._native.create_outbound_session(identity_key, one_time_key)
         sess = Session.__new__(Session)
         sess._native = native_session
+        sess._stashed_prekey_plaintext = None
         return sess
 
     def new_inbound_session(self, sender_key, message: OlmPreKeyMessage) -> "Session":
         """Create a new inbound Olm session from a pre-key message.
+
+        vodozemac decrypts the initial pre-key message as part of session
+        creation. We stash the resulting plaintext on the returned Session so
+        that the python-olm two-step pattern — ``session.decrypt(prekey_msg)``
+        after construction — returns the same plaintext (matching mautrix and
+        matrix-nio expectations).
 
         Args:
             sender_key: The sender's curve25519 identity key (str or None).
@@ -155,11 +162,12 @@ class Account:
         Returns:
             A Session object for communicating with the sender.
         """
-        native_session, _plaintext = self._native.create_inbound_session(
+        native_session, plaintext = self._native.create_inbound_session(
             sender_key or None, message.ciphertext
         )
         sess = Session.__new__(Session)
         sess._native = native_session
+        sess._stashed_prekey_plaintext = (message.ciphertext, plaintext)
         return sess
 
     def remove_one_time_keys(self, session) -> None:
@@ -214,6 +222,13 @@ class Session:
     def __init__(self):
         # Normally created via Account.new_outbound_session / new_inbound_session
         self._native = None
+        # When this Session is created from a pre-key message (inbound), vodozemac
+        # has already decrypted the initial plaintext as part of session
+        # establishment. We stash (ciphertext_bytes, plaintext_bytes) here so that
+        # the python-olm two-step `session.decrypt(prekey_msg)` can return the
+        # already-known plaintext instead of failing in the native ratchet.
+        # Cleared on first matching decrypt; never serialized through pickle.
+        self._stashed_prekey_plaintext: tuple[bytes, bytes] | None = None
 
     def _check_initialized(self) -> None:
         """Raise if the session has no native backing.
@@ -246,9 +261,28 @@ class Session:
         return _wrap_encrypted(native_msg)
 
     def decrypt(self, message) -> str:
-        """Decrypt a message. Takes OlmMessage/OlmPreKeyMessage, returns str."""
+        """Decrypt a message. Takes OlmMessage/OlmPreKeyMessage, returns str.
+
+        If `message` is the same pre-key message that originally created this
+        Session (matched by message_type==0 and exact ciphertext bytes), the
+        plaintext returned by vodozemac at session-creation time is served
+        from the stash and the stash is cleared. All other messages — normal
+        type-1 messages, or different pre-key messages — go through the
+        native session ratchet as usual.
+        """
         self._check_initialized()
-        plaintext_bytes = self._native.decrypt(message.message_type, message.ciphertext)
+        stashed = self._stashed_prekey_plaintext
+        if (
+            stashed is not None
+            and message.message_type == 0
+            and message.ciphertext == stashed[0]
+        ):
+            self._stashed_prekey_plaintext = None
+            return stashed[1].decode("utf-8")
+        try:
+            plaintext_bytes = self._native.decrypt(message.message_type, message.ciphertext)
+        except Exception as exc:
+            raise OlmSessionError(str(exc)) from exc
         return plaintext_bytes.decode("utf-8")
 
     def matches(self, message) -> bool:
@@ -279,9 +313,13 @@ class Session:
         """Deserialize a session from bytes data and passphrase.
 
         Uses vodozemac's safe encrypted-string deserialization internally.
-        
-        Extra kwargs (creation_time, last_encrypted, last_decrypted, etc.) 
+
+        Extra kwargs (creation_time, last_encrypted, last_decrypted, etc.)
         are accepted for mautrix compatibility but ignored.
+
+        The pre-key plaintext stash (see Session.__init__) is in-memory only
+        and is never persisted through pickle, so a restored Session has
+        _stashed_prekey_plaintext=None.
         """
         key = _passphrase_to_bytes(passphrase)
         if isinstance(data, bytes):
@@ -289,6 +327,7 @@ class Session:
         native = _NativeSession.from_encrypted_string(data, key)
         obj = cls.__new__(cls)
         obj._native = native
+        obj._stashed_prekey_plaintext = None
         return obj
 
     def __repr__(self) -> str:
@@ -307,6 +346,7 @@ class InboundSession(Session):
     def __init__(self, account, message, identity_key=None):
         temp = account.new_inbound_session(identity_key, message)
         self._native = temp._native
+        self._stashed_prekey_plaintext = temp._stashed_prekey_plaintext
 
 
 class OutboundSession(Session):
@@ -314,6 +354,7 @@ class OutboundSession(Session):
     def __init__(self, account, identity_key, one_time_key):
         temp = account.new_outbound_session(identity_key, one_time_key)
         self._native = temp._native
+        self._stashed_prekey_plaintext = None
 
 
 # ---------------------------------------------------------------------------
