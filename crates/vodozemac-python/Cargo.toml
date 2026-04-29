@@ -11,3 +11,5 @@ crate-type = ["cdylib"]
 vodozemac = { version = "0.9", features = ["insecure-pk-encryption"] }
 pyo3 = { version = "0.28", features = ["extension-module"] }
 base64 = "0.22"
+argon2 = "0.5"
+rand = "0.8"
