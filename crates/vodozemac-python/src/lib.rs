@@ -4,6 +4,7 @@ mod account;
 mod errors;
 mod group_session;
 mod inbound_group_session;
+mod pickle_format;
 mod pk;
 mod session;
 
