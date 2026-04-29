@@ -17,6 +17,13 @@
 //!   *absence* of the `"v2|"` prefix. Decrypted with `passphrase_to_key_v1`
 //!   (zero-pad/truncate to 32 bytes). Will be removed in 0.4.0.
 
+// All public items in this module are dead until Tasks 3-6 of the v2 KDF
+// migration wire them up from account.rs / session.rs / group_session.rs /
+// inbound_group_session.rs. Module-level allow is intentional for this
+// intermediate state and should be removed once the migrations land — at
+// which point the production call sites make every item live.
+#![allow(dead_code)]
+
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::Engine;
 use rand::RngCore;
@@ -41,6 +48,7 @@ impl Argon2Params {
 }
 
 /// What kind of envelope a given encrypted string is.
+#[derive(Debug)]
 pub enum EnvelopeKind<'a> {
     V2 {
         params: Argon2Params,
@@ -115,6 +123,19 @@ pub fn decode_envelope(encrypted: &str) -> Result<EnvelopeKind<'_>, String> {
         let m_cost = u32::from_be_bytes(header[0..4].try_into().unwrap());
         let t_cost = u32::from_be_bytes(header[4..8].try_into().unwrap());
         let p_cost = u32::from_be_bytes(header[8..12].try_into().unwrap());
+        // Reject implausibly large parameters to prevent DoS from crafted blobs.
+        // The current default profile is m=19456, t=2, p=1; these caps
+        // accommodate any reasonable future profile bump while still rejecting
+        // u32::MAX-style adversarial inputs.
+        const MAX_M_COST: u32 = 1_048_576; // 1 GiB
+        const MAX_T_COST: u32 = 256;
+        const MAX_P_COST: u32 = 8;
+        if m_cost > MAX_M_COST || t_cost > MAX_T_COST || p_cost > MAX_P_COST {
+            return Err(format!(
+                "v2 header params out of range: m_cost={m_cost} (max {MAX_M_COST}), \
+                 t_cost={t_cost} (max {MAX_T_COST}), p_cost={p_cost} (max {MAX_P_COST})"
+            ));
+        }
         let mut salt = [0u8; 16];
         salt.copy_from_slice(&header[12..28]);
         Ok(EnvelopeKind::V2 {
@@ -168,6 +189,23 @@ mod tests {
         assert!(decode_envelope("v2|notbase64!|inner").is_err());
         assert!(decode_envelope("v2|aGVsbG8|inner").is_err()); // wrong header length
         assert!(decode_envelope("v2|noinnerseparator").is_err());
+    }
+
+    #[test]
+    fn rejects_implausibly_large_argon2_params() {
+        // Build a v2 envelope by hand with m_cost = u32::MAX and see decode_envelope reject it.
+        let mut header = [0u8; 28];
+        header[0..4].copy_from_slice(&u32::MAX.to_be_bytes()); // m_cost
+        header[4..8].copy_from_slice(&2u32.to_be_bytes()); // t_cost
+        header[8..12].copy_from_slice(&1u32.to_be_bytes()); // p_cost
+        // salt left as zeros — irrelevant for this test
+        let header_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(header);
+        let envelope = format!("v2|{header_b64}|inner");
+        let err = decode_envelope(&envelope).expect_err("should reject");
+        assert!(
+            err.contains("out of range"),
+            "expected param-bounds error, got: {err}"
+        );
     }
 
     #[test]
