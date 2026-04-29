@@ -12,10 +12,9 @@ use crate::pickle_format::{
 };
 use crate::session::Session;
 
-// Backward-compat alias so Tasks 4-6 (session/group_session/inbound_group_session)
-// can continue to compile against `crate::account::passphrase_to_key` until
-// each of those files is migrated to use `crate::pickle_format::passphrase_to_key_v1`
-// directly. Remove this once all four migrations are complete.
+// TODO(Task6): remove this shim once session.rs / group_session.rs /
+// inbound_group_session.rs have been migrated to import directly from
+// crate::pickle_format::passphrase_to_key_v1.
 pub(crate) use crate::pickle_format::passphrase_to_key_v1 as passphrase_to_key;
 
 #[pyclass]
@@ -32,6 +31,7 @@ impl Account {
         }
     }
 
+    /// Return the identity keys as a dict with "ed25519" and "curve25519" base64 strings.
     fn identity_keys<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let keys = self.inner.identity_keys();
         let dict = PyDict::new(py);
@@ -40,14 +40,17 @@ impl Account {
         Ok(dict)
     }
 
+    /// Sign the given message bytes and return a base64 signature string.
     fn sign(&self, message: &[u8]) -> String {
         self.inner.sign(message).to_base64()
     }
 
+    /// Generate `count` one-time keys.
     fn generate_one_time_keys(&mut self, count: usize) {
         self.inner.generate_one_time_keys(count);
     }
 
+    /// Return unpublished one-time keys as a dict {key_id_b64: key_b64}.
     fn one_time_keys<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let otks = self.inner.one_time_keys();
         let dict = PyDict::new(py);
@@ -57,14 +60,17 @@ impl Account {
         Ok(dict)
     }
 
+    /// Mark all one-time keys as published.
     fn mark_keys_as_published(&mut self) {
         self.inner.mark_keys_as_published();
     }
 
+    /// Return the maximum number of one-time keys the account can hold.
     fn max_number_of_one_time_keys(&self) -> usize {
         self.inner.max_number_of_one_time_keys()
     }
 
+    /// Create an outbound Olm session with the given identity key and one-time key (both base64).
     fn create_outbound_session(
         &self,
         their_identity_key: &str,
@@ -80,6 +86,9 @@ impl Account {
         Ok(Session::from_vz(session))
     }
 
+    /// Create an inbound Olm session from a pre-key message.
+    /// Returns (Session, plaintext_bytes).
+    /// If their_identity_key is None or empty, extracts it from the PreKeyMessage.
     #[pyo3(signature = (their_identity_key, pre_key_message_bytes))]
     fn create_inbound_session(
         &mut self,
@@ -114,6 +123,10 @@ impl Account {
 
     /// Restore an Account from an encrypted string. Detects v2 vs v1 from
     /// the prefix and dispatches to the correct KDF.
+    ///
+    /// `py` is required because the legacy path calls
+    /// `emit_v1_deprecation_warning`; pyo3 0.28 injects this token
+    /// automatically when invoked from Python.
     #[staticmethod]
     fn from_encrypted_string(py: Python<'_>, encrypted: &str, passphrase: &[u8]) -> PyResult<Self> {
         let (key, vodozemac_inner, was_legacy) = match decode_envelope(encrypted)
@@ -173,7 +186,8 @@ pub(crate) fn emit_v1_deprecation_warning(py: Python<'_>, kind: &str) -> PyResul
 
 /// Test-only: re-encrypt an Account using the legacy v1 KDF so Python tests
 /// can exercise the v1 decode path without committing binary fixtures.
-/// NOT a stable API. Underscored name signals internal-only.
+/// NOT a stable API. Underscored name signals internal-only. Will be
+/// removed in 0.4.0 along with the v1 decode path itself.
 #[pyfunction]
 pub(crate) fn _v1_encrypt_account_for_testing(
     account: PyRef<'_, Account>,

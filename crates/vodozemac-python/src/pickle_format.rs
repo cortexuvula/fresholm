@@ -17,13 +17,6 @@
 //!   *absence* of the `"v2|"` prefix. Decrypted with `passphrase_to_key_v1`
 //!   (zero-pad/truncate to 32 bytes). Will be removed in 0.4.0.
 
-// All public items in this module are dead until Tasks 3-6 of the v2 KDF
-// migration wire them up from account.rs / session.rs / group_session.rs /
-// inbound_group_session.rs. Module-level allow is intentional for this
-// intermediate state and should be removed once the migrations land — at
-// which point the production call sites make every item live.
-#![allow(dead_code)]
-
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::Engine;
 use rand::RngCore;
