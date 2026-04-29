@@ -120,7 +120,9 @@ class TestV1LegacyDecode:
             restored = Session.from_encrypted_string(blob, PASSPHRASE)
         assert restored.session_id() == sess.session_id()
         dep = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert any("Session" in str(w.message) for w in dep)
+        assert len(dep) == 1
+        msg = str(dep[0].message)
+        assert "v1" in msg and "Session" in msg
 
     def test_group_session_v1_decode_with_warning(self):
         _, _, out_group, _ = _fresh_session_pair()
@@ -130,7 +132,9 @@ class TestV1LegacyDecode:
             restored = GroupSession.from_encrypted_string(blob, PASSPHRASE)
         assert restored.session_id() == out_group.session_id()
         dep = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert any("GroupSession" in str(w.message) for w in dep)
+        assert len(dep) == 1
+        msg = str(dep[0].message)
+        assert "v1" in msg and "GroupSession" in msg
 
     def test_inbound_group_session_v1_decode_with_warning(self):
         _, _, _, in_group = _fresh_session_pair()
@@ -140,7 +144,9 @@ class TestV1LegacyDecode:
             restored = InboundGroupSession.from_encrypted_string(blob, PASSPHRASE)
         assert restored.session_id() == in_group.session_id()
         dep = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert any("InboundGroupSession" in str(w.message) for w in dep)
+        assert len(dep) == 1
+        msg = str(dep[0].message)
+        assert "v1" in msg and "InboundGroupSession" in msg
 
 
 # ---------------------------------------------------------------------------
