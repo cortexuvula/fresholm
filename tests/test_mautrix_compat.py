@@ -62,17 +62,23 @@ class TestImportHook:
 
     def test_from_olm_import_group_sessions(self):
         import fresholm.import_hook  # noqa: F401
-        from olm import InboundGroupSession, OutboundGroupSession
+        from olm import (
+            InboundGroupSession as ImportedIGS,
+            OutboundGroupSession as ImportedOGS,
+        )
 
-        assert OutboundGroupSession is OutboundGroupSession
-        assert InboundGroupSession is InboundGroupSession
+        assert ImportedOGS is OutboundGroupSession
+        assert ImportedIGS is InboundGroupSession
 
     def test_from_olm_import_messages(self):
         import fresholm.import_hook  # noqa: F401
-        from olm import OlmMessage, OlmPreKeyMessage
+        from olm import (
+            OlmMessage as ImportedOlmMessage,
+            OlmPreKeyMessage as ImportedOlmPreKeyMessage,
+        )
 
-        assert OlmMessage is OlmMessage
-        assert OlmPreKeyMessage is OlmPreKeyMessage
+        assert ImportedOlmMessage is OlmMessage
+        assert ImportedOlmPreKeyMessage is OlmPreKeyMessage
 
     def test_from_olm_import_errors(self):
         import fresholm.import_hook  # noqa: F401
