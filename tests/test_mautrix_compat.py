@@ -150,6 +150,7 @@ class TestMautrixSubclassPatterns:
         )
         sess = MySession.__new__(MySession)
         sess._native = native_session
+        sess._stashed_prekey_plaintext = None
         assert isinstance(sess, MySession)
         assert isinstance(sess.id, str)
 

@@ -322,3 +322,24 @@ class TestInboundSessionInitialPlaintext:
         restored = Session.from_pickle(blob, "pw")
 
         assert restored._stashed_prekey_plaintext is None
+
+    def test_inbound_session_from_pickle_returns_subclass_with_no_stash(self):
+        """InboundSession.from_pickle returns an InboundSession instance with
+        the stash dropped — confirms cls.__new__(cls) handles subclasses and
+        that the from_pickle init path sets _stashed_prekey_plaintext=None.
+        """
+        alice, bob, bob_otk = _setup_alice_bob()
+        out_sess = OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
+        prekey_msg = out_sess.encrypt("Roundtrip")
+        in_sess = InboundSession(
+            bob, prekey_msg, identity_key=alice.identity_keys["curve25519"]
+        )
+
+        blob = in_sess.pickle("pw")
+        restored = InboundSession.from_pickle(blob, "pw")
+
+        assert isinstance(restored, InboundSession)
+        assert isinstance(restored, Session)
+        assert restored._stashed_prekey_plaintext is None
+        # Native session restored correctly — id matches
+        assert restored.id == in_sess.id
