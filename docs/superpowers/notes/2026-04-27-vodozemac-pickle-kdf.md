@@ -110,3 +110,15 @@ strategy.
 7. **Add a test** that verifies a 1-character passphrase under the new scheme produces a
    different 32-byte key material for every call (i.e., the salt is random and
    serialized), and that a round-trip through `from_encrypted_string` succeeds.
+
+---
+
+## Resolution
+
+Implemented in 0.3.0 per `docs/superpowers/plans/2026-04-28-pickle-kdf-v2.md`.
+
+- New `pickle_format` module in `crates/vodozemac-python/src/`.
+- v2 envelope: `"v2|" || base64url(m_cost||t_cost||p_cost||salt[16]) || "|" || vodozemac_inner`.
+- Argon2id, RFC 9106 second-recommended profile (m=19456, t=2, p=1).
+- v1 blobs still decode; calling `from_encrypted_string` on a v1 blob emits a
+  `DeprecationWarning`. v1 read support will be removed in 0.4.0.
