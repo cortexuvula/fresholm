@@ -15,6 +15,7 @@ from fresholm._native import Account as _NativeAccount
 from fresholm._native import EncryptedMessage as _NativeEncryptedMessage
 from fresholm._native import GroupSession as _NativeGroupSession
 from fresholm._native import InboundGroupSession as _NativeInboundGroupSession
+from fresholm._native import OlmSessionError as _NativeOlmSessionError
 from fresholm._native import Session as _NativeSession
 
 from .types import (
@@ -281,7 +282,7 @@ class Session:
             return stashed[1].decode("utf-8")
         try:
             plaintext_bytes = self._native.decrypt(message.message_type, message.ciphertext)
-        except Exception as exc:
+        except _NativeOlmSessionError as exc:
             raise OlmSessionError(str(exc)) from exc
         return plaintext_bytes.decode("utf-8")
 

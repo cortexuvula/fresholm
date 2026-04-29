@@ -232,7 +232,6 @@ class TestInboundSessionInitialPlaintext:
 
     def test_decrypt_initial_prekey_via_inbound_session(self):
         """python-olm two-step: InboundSession then decrypt(same prekey)."""
-        from fresholm.compat.olm import OlmPreKeyMessage  # noqa: F401
         alice, bob, bob_otk = _setup_alice_bob()
         out_sess = OutboundSession(alice, bob.identity_keys["curve25519"], bob_otk)
         prekey_msg = out_sess.encrypt("Hello Bob!")
