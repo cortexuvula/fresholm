@@ -155,6 +155,14 @@ Note: despite the method name, `pickle()` and `from_pickle()` do **not** use Pyt
 standard library `pickle` module. They call vodozemac's own encrypted-string
 serialization, which is safe to use with untrusted data.
 
+## Pickle format
+
+`pickle()` / `from_pickle()` switched to an Argon2id-stretched envelope in 0.3.0
+(output prefixed `v2|`, with a per-pickle 16-byte salt; RFC 9106 second-recommended
+profile). Blobs produced by 0.2.x still load on 0.3.x but emit a `DeprecationWarning`;
+v1 read support will be removed in 0.4.0. The format break is forward-only —
+0.2.x cannot read v2 blobs, so once you re-pickle there is no downgrade path.
+
 ## Known differences from python-olm / libolm
 
 - **Serialisation format is incompatible.** Sessions serialized by libolm/python-olm
