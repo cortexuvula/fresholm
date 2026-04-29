@@ -1,8 +1,11 @@
 use pyo3::prelude::*;
 use vodozemac::olm::{OlmMessage, PreKeyMessage, Session as VzSession, SessionPickle};
 
-use crate::account::passphrase_to_key;
 use crate::errors::OlmSessionError;
+use crate::pickle_format::{
+    decode_envelope, derive_v2, encode_v2_envelope, fresh_salt, passphrase_to_key_v1,
+    Argon2Params, EnvelopeKind,
+};
 
 /// An encrypted Olm message returned by `Session.encrypt()`.
 #[pyclass]
@@ -84,20 +87,47 @@ impl Session {
         self.inner.has_received_message()
     }
 
-    /// Serialize the session with the given passphrase bytes. Returns an encrypted string.
+    /// Serialize the session via Argon2id v2 envelope.
     fn to_encrypted_string(&self, passphrase: &[u8]) -> PyResult<String> {
-        let key = passphrase_to_key(passphrase);
-        Ok(self.inner.pickle().encrypt(&key))
+        let params = Argon2Params::default_v2();
+        let salt = fresh_salt();
+        let key = derive_v2(passphrase, &params, &salt)
+            .map_err(OlmSessionError::new_err)?;
+        let inner = self.inner.pickle().encrypt(&key);
+        Ok(encode_v2_envelope(&params, &salt, &inner))
     }
 
-    /// Restore a Session from an encrypted string and passphrase bytes.
+    /// Restore a Session, dispatching v2/v1 by envelope.
+    ///
+    /// `py` is required because the legacy path calls
+    /// `emit_v1_deprecation_warning`; pyo3 0.28 injects this token
+    /// automatically when invoked from Python.
     #[staticmethod]
-    fn from_encrypted_string(encrypted: &str, passphrase: &[u8]) -> PyResult<Self> {
-        let key = passphrase_to_key(passphrase);
-        let sp = SessionPickle::from_encrypted(encrypted, &key)
+    fn from_encrypted_string(py: Python<'_>, encrypted: &str, passphrase: &[u8]) -> PyResult<Self> {
+        let (key, vodozemac_inner, was_legacy) = match decode_envelope(encrypted)
+            .map_err(OlmSessionError::new_err)?
+        {
+            EnvelopeKind::V2 {
+                params,
+                salt,
+                inner,
+            } => {
+                let k = derive_v2(passphrase, &params, &salt)
+                    .map_err(OlmSessionError::new_err)?;
+                (k, inner.to_string(), false)
+            }
+            EnvelopeKind::V1 { inner } => {
+                (passphrase_to_key_v1(passphrase), inner.to_string(), true)
+            }
+        };
+        if was_legacy {
+            crate::account::emit_v1_deprecation_warning(py, "Session")?;
+        }
+        let sp = SessionPickle::from_encrypted(&vodozemac_inner, &key)
             .map_err(|e| OlmSessionError::new_err(format!("Deserialization failed: {e}")))?;
-        let session = VzSession::from_pickle(sp);
-        Ok(Self { inner: session })
+        Ok(Self {
+            inner: VzSession::from_pickle(sp),
+        })
     }
 
     /// Check whether a pre-key message was created using the same session keys
@@ -114,4 +144,17 @@ impl Session {
     fn __repr__(&self) -> String {
         format!("Session(session_id=\"{}\")", self.inner.session_id())
     }
+}
+
+/// Test-only: re-encrypt a Session using the legacy v1 KDF so Python tests
+/// can exercise the v1 decode path without committing binary fixtures.
+/// NOT a stable API. Underscored name signals internal-only. Will be
+/// removed in 0.4.0 along with the v1 decode path itself.
+#[pyfunction]
+pub(crate) fn _v1_encrypt_session_for_testing(
+    session: PyRef<'_, Session>,
+    passphrase: &[u8],
+) -> String {
+    let key = passphrase_to_key_v1(passphrase);
+    session.inner.pickle().encrypt(&key)
 }
